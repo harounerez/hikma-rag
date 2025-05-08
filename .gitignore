@@ -29,3 +29,6 @@ Thumbs.db
 
 # Virtual environment
 venv/
+
+#token
+token.txt
