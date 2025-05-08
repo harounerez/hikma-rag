@@ -3,7 +3,6 @@
 
 # Chroma database
 chroma_*
-chroma/
 
 # Data files
 data/

@@ -1,9 +1,9 @@
-import argparse
+from flask import Flask, request, jsonify
 import os
 from langchain_chroma import Chroma
 from langchain.prompts import ChatPromptTemplate
 from langchain_huggingface import HuggingFaceEmbeddings
-from langchain_together import Together  # Updated import for Together AI
+from langchain_together import Together
 from dotenv import load_dotenv
 import pickle
 import hashlib
@@ -11,9 +11,11 @@ import hashlib
 # Load environment variables
 load_dotenv()
 
+app = Flask(__name__)
+
 CHROMA_PATH = "chroma"
 DEFAULT_EMBEDDING_MODEL = "sentence-transformers/all-mpnet-base-v2"
-DEFAULT_LLM_MODEL = "deepseek-ai/DeepSeek-R1-Distill-Llama-70B-free"  # Model ID on Together AI
+DEFAULT_LLM_MODEL = "deepseek-ai/DeepSeek-R1-Distill-Llama-70B-free"
 
 PROMPT_TEMPLATE = """
 Answer the question based only on the following context:
@@ -52,91 +54,63 @@ def cache_response(prompt, response, cache_file="response_cache.pkl"):
     with open(cache_file, "wb") as f:
         pickle.dump(cache, f)
 
+@app.route('/query', methods=['POST'])
+def query():
+    data = request.json
+    query_text = data.get("query_text")
+    embedding_model = data.get("embedding_model", DEFAULT_EMBEDDING_MODEL)
+    llm_model = data.get("llm_model", DEFAULT_LLM_MODEL)
+    use_openai = data.get("use_openai", False)
+    force_reload = data.get("force_reload", False)
 
-def main():
-    # Create CLI.
-    parser = argparse.ArgumentParser()
-    parser.add_argument("query_text", type=str, help="The query text.")
-    parser.add_argument("--embedding_model", type=str, default=DEFAULT_EMBEDDING_MODEL,
-                       help=f"HuggingFace model for embeddings (default: {DEFAULT_EMBEDDING_MODEL})")
-    parser.add_argument("--llm_model", type=str, default="deepseek-ai/DeepSeek-R1-Distill-Llama-70B-free",
-                       help="Together AI model ID (default: deepseek-ai/DeepSeek-R1-Distill-Llama-70B-free)")
-    parser.add_argument("--use_openai", action="store_true", 
-                       help="Use OpenAI instead of Together AI (requires API key)")
-    parser.add_argument("--force_reload", action="store_true",
-                       help="Force regeneration (ignore cache)")
-    
-    args = parser.parse_args()
-    query_text = args.query_text
+    if not query_text:
+        return jsonify({"error": "query_text is required"}), 400
 
     # Prepare the DB with selected embedding model
-    print(f"Using embedding model: {args.embedding_model}")
     embedding_function = HuggingFaceEmbeddings(
-        model_name=args.embedding_model,
-        cache_folder="./models/"  # Cache the model locally
+        model_name=embedding_model,
+        cache_folder="./models/"
     )
     
-    # Check if database exists
     if not os.path.exists(CHROMA_PATH):
-        print(f"Error: Database not found at {CHROMA_PATH}. Please run create_database.py first.")
-        return
-        
-    # Load the database
+        return jsonify({"error": f"Database not found at {CHROMA_PATH}. Please run create_database.py first."}), 500
+
     try:
         db = Chroma(persist_directory=CHROMA_PATH, embedding_function=embedding_function)
-        
-        # Search the DB.
         results = db.similarity_search_with_relevance_scores(query_text, k=3)
         if len(results) == 0 or results[0][1] < -9:
-            print(f"Unable to find matching results.")
-            return
+            return jsonify({"error": "Unable to find matching results."}), 404
 
         context_text = "\n\n---\n\n".join([doc.page_content for doc, _score in results])
         prompt_template = ChatPromptTemplate.from_template(PROMPT_TEMPLATE)
         prompt = prompt_template.format(context=context_text, question=query_text)
-        
-        # Check if we have a cached response
-        cached_response = None if args.force_reload else get_cached_response(prompt)
+
+        cached_response = None if force_reload else get_cached_response(prompt)
         if cached_response:
             response_text = cached_response
         else:
-            # Choose between OpenAI or Together AI
-            if args.use_openai:
+            if use_openai:
                 from langchain_openai import ChatOpenAI
-                print("Using OpenAI model")
                 model = ChatOpenAI()
             else:
-                # Use Together AI API instead of loading locally
-                print(f"Using Together AI model: {args.llm_model}")
-                
-                # Check if API key is available
                 if not os.getenv("TOGETHER_API_KEY"):
-                    print("Error: TOGETHER_API_KEY environment variable not set.")
-                    print("Please set your Together AI API key in the .env file or as an environment variable.")
-                    return
-                
-                # Initialize the model through Together AI
+                    return jsonify({"error": "TOGETHER_API_KEY environment variable not set."}), 500
+
                 model = Together(
-                    model=args.llm_model,
+                    model=llm_model,
                     temperature=0.7,
                     max_tokens=1024,
                     top_p=0.9,
                 )
             
-            # Generate the response
             response_text = model.invoke(prompt)
-            # Cache for future use
             cache_response(prompt, response_text)
 
-        # Format and display the results
         sources = [doc.metadata.get("source", None) for doc, _score in results]
-        formatted_response = f"Response: {response_text}\nSources: {sources}"
-        print(formatted_response)
-    
-    except Exception as e:
-        print(f"Error: {e}")
-        print("If the error is related to the Together AI API, check your API key and connection.")
+        return jsonify({"response": response_text, "sources": sources})
 
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
 
 if __name__ == "__main__":
-    main()
+    app.run(host="0.0.0.0", port=5000)
