@@ -1,0 +1,31 @@
+# Environment variables
+.env
+
+# Chroma database
+chroma_*
+chroma/
+
+# Data files
+data/
+
+# Python cache files
+__pycache__/
+*.py[cod]
+*.pyo
+
+# Model cache
+models/
+
+# Pickle cache files
+*.pkl
+
+# Logs and temporary files
+*.log
+*.tmp
+
+# OS-specific files
+.DS_Store
+Thumbs.db
+
+# Virtual environment
+venv/
