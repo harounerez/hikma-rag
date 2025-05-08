@@ -32,3 +32,5 @@ venv/
 
 #token
 token.txt
+
+compare_embeddings.py
