@@ -2,10 +2,14 @@
 .env
 
 # Chroma database
-chroma_*
+chroma/
+chroma_1/
+chroma_2/
 
 # Data files
 data/
+*.pdf
+*.docx
 
 # Python cache files
 __pycache__/
@@ -17,6 +21,7 @@ models/
 
 # Pickle cache files
 *.pkl
+response_cache.pkl
 
 # Logs and temporary files
 *.log
@@ -27,7 +32,7 @@ models/
 Thumbs.db
 
 # Virtual environment
-venv/
+.venv/
 
 #token
 token.txt

@@ -11,7 +11,7 @@ from dotenv import load_dotenv
 # Load environment variables
 load_dotenv()
 
-CHROMA_PATH = "chroma"
+CHROMA_PATH = "chroma_2"
 DEFAULT_DATA_PATH = "data"
 DEFAULT_EMBEDDING_MODEL = "sentence-transformers/all-mpnet-base-v2" 
 
@@ -133,6 +133,9 @@ def load_documents(data_path):
     empty_docs = [i for i, doc in enumerate(documents) if not doc.page_content.strip()]
     if empty_docs:
         print(f"Warning: {len(empty_docs)} documents have empty content")
+        for idx in empty_docs:
+            doc = documents[idx]
+            print(f"  - Empty doc index: {idx}, file: {doc.metadata.get('source', 'unknown')}, filename: {doc.metadata.get('filename', 'unknown')}")
         documents = [doc for doc in documents if doc.page_content.strip()]
         print(f"Proceeding with {len(documents)} non-empty documents")
     
@@ -167,7 +170,7 @@ def save_to_chroma(chunks: list[Document], embedding_model):
     try:
         embeddings = HuggingFaceEmbeddings(
             model_name=embedding_model,
-            cache_folder="./models/"  # Cache the model locally
+            cache_folder="./models/"
         )
         
         # Test embedding to validate
@@ -175,13 +178,26 @@ def save_to_chroma(chunks: list[Document], embedding_model):
         test_embedding = embeddings.embed_query(test_text)
         print(f"Test embedding dimension: {len(test_embedding)}")
         
-        # Create a new DB from the documents
-        # When a persist_directory is provided, it automatically persists
-        db = Chroma.from_documents(
-            chunks, embeddings, persist_directory=CHROMA_PATH
-        )
-        # No need to call persist() - it's already done when using persist_directory
-        print(f"Successfully saved {len(chunks)} chunks to {CHROMA_PATH}")
+        # Save in batches to avoid exceeding Chroma's max batch size
+        batch_size = 5000
+        total_chunks = len(chunks)
+        print(f"Saving chunks to Chroma DB in batches of {batch_size}...")
+
+        if total_chunks == 0:
+            print("No chunks to save.")
+            return
+
+        # First batch: create the DB
+        first_batch = chunks[:batch_size]
+        db = Chroma.from_documents(first_batch, embeddings, persist_directory=CHROMA_PATH)
+        print(f"  - Saved batch 1 (0 to {len(first_batch)-1})")
+
+        # Remaining batches
+        for i in range(batch_size, total_chunks, batch_size):
+            batch = chunks[i:i+batch_size]
+            db.add_documents(batch)
+            print(f"  - Saved batch {i//batch_size + 1} ({i} to {i+len(batch)-1})")
+        print(f"Successfully saved {total_chunks} chunks to {CHROMA_PATH}")
     except Exception as e:
         print(f"Error in save_to_chroma: {str(e)}")
         if chunks:
