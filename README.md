@@ -1,20 +1,19 @@
-# Langchain RAG Tutorial
+# Langchain RAG for Hikma
 
 ## Install dependencies
 
-1. Do the following before installing the dependencies found in `requirements.txt` file because of current challenges installing `onnxruntime` through `pip install onnxruntime`. 
-
-    - For MacOS users, a workaround is to first install `onnxruntime` dependency for `chromadb` using:
+1. Do the following before installing the dependencies found in `requirements.txt` file.
 
     ```python
      conda install onnxruntime -c conda-forge
     ```
-    See this [thread](https://github.com/microsoft/onnxruntime/issues/11037) for additonal help if needed. 
+    or
+    ```python
+   pip install onnxruntime
+    ```
 
-     - For Windows users, follow the guide [here](https://github.com/bycloudai/InstallVSBuildToolsWindows?tab=readme-ov-file) to install the Microsoft C++ Build Tools. Be sure to follow through to the last step to set the enviroment variable path.
 
-
-2. Now run this command to install dependenies in the `requirements.txt` file. 
+3. Now run this command to install dependenies in the `requirements.txt` file. 
 
 ```python
 pip install -r requirements.txt
@@ -42,6 +41,10 @@ Query the Chroma DB.
 python query_data.py "quelle sont les bonnes pratiques de fabrication?"
 ```
 
-> You'll also need to set up an OpenAI account (and set the OpenAI key in your environment variable) for this to work.
+**important**: you need to generate an api key from teh website together.ai and create an .env fie and add this:
+TOGETHER_API_KEY=your_api_key
 
-Here is a step-by-step tutorial video: [RAG+Langchain Python Project: Easy AI/Chat For Your Docs](https://www.youtube.com/watch?v=tcqEUSNCn8I&ab_channel=pixegami).
+## Test the endpoint:
+- run app.py
+- make a post request ot this url: http://127.0.0.1:5000
+- add these arguments: json - {"query_text": "question for the llm"}
